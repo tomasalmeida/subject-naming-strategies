@@ -65,7 +65,10 @@ Check events being created or refused due to the condition rules.
 
 ```shell
   # check the schema
-  curl -X GET http://schema-registry:8081/subjects
+   curl -s -X GET http://schema-registry:8081/subjects | jq
+[
+  "value-crm.users2-com.tomasalmeida.subject.strategies.User"
+]
 ```
 
 Result should contain `value-crm.users2-com.tomasalmeida.subject.strategies.User` in the list.
@@ -90,13 +93,22 @@ Once finished running the part A of this demo, let's create a subject alias to u
 ### Checking the subjects:
     
 ```shell
-  curl -X GET http://schema-registry:8081/subjects
+  curl -s -X GET http://schema-registry:8081/subjects | jq
+[
+  "value-crm.users2-com.tomasalmeida.subject.strategies.User"
+]
 ```
 
 Only the custom subject `value-crm.users2-com.tomasalmeida.subject.strategies.User` is visible. Although, the alias can be accessed using.
 
 ```shell
    curl -s -X GET http://schema-registry:8081/subjects/crm.users2-value/versions/1 | jq
+{
+  "subject": "value-crm.users2-com.tomasalmeida.subject.strategies.User",
+  "version": 1,
+  "id": 1,
+  "schema": "{\"type\":\"record\",\"name\":\"User\",\"namespace\":\"com.tomasalmeida.subject.strategies\",\"fields\":[{\"name\":\"firstName\",\"type\":{\"type\":\"string\",\"avro.java.string\":\"String\"}},{\"name\":\"lastName\",\"type\":{\"type\":\"string\",\"avro.java.string\":\"String\"}},{\"name\":\"fullName\",\"type\":{\"type\":\"string\",\"avro.java.string\":\"String\"},\"default\":\"\"},{\"name\":\"age\",\"type\":\"int\"}]}"
+}
 ```
 
 
@@ -137,6 +149,11 @@ You can confirm the schema is the same using
   --bootstrap-server localhost:29092 \
   --property schema.registry.url=http://localhost:8081 \
   --property print.schema.ids=true
+...
+{"firstName":"Tomas","lastName":"Dias Almeida","fullName":"Tomas Almeida","age":39}     1
+{"firstName":"Fernando","lastName":"Perez Machado","fullName":"","age":53}      1
+{"firstName":"Tomas","lastName":"Dias Almeida","fullName":"Tomas Almeida","age":39}     1
+{"firstName":"Fernando","lastName":"Perez Machado","fullName":"","age":53}      1
 ```
 
 ## Shutdown
