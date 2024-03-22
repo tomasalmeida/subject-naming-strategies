@@ -1,4 +1,4 @@
-# Confluent Data Contract
+# Subject name strategies
 
 ## Start the environment and code compilation
 
