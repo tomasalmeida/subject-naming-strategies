@@ -167,9 +167,113 @@ You can confirm the schema is the same using
     cd ..
 ```
 
+
+## DEMO 3: Using subject alias on Cloud
+
+Export Cloud and Schema Registry API keys and secret. Also, export the schema registry url and id.
+
+```shell
+export CLOUD_KEY="xxxx"
+export CLOUD_SECRET="yyyyy"
+
+export SR_KEY="oooo"
+export SR_SECRET="zzzzz"
+
+export CC_SR_HOST="psrc-abcde.us-east-1.XYZ.confluent.cloud"
+export CC_SR_ID="lsrc-fghiz"
+```
+
+Create a simple schema
+
+```shell
+curl -s -u $SR_KEY:$SR_SECRET POST -H "Content-Type: application/vnd.schemaregistry.v1+json" https://$CC_SR_HOST/subjects/kafka-value/versions --data '{"schema": "{\"type\": \"string\"}", "schemaType": "AVRO" }'
+```
+
+
+Count the schemas (adapt the intervals)
+
+```shell
+curl -s 'https://api.telemetry.confluent.cloud/v2/metrics/cloud/query' \
+ -H "Content-Type: application/json" \
+ -d '{"aggregations":   [{"metric":"io.confluent.kafka.schema_registry/schema_count"}],"filter":{"op":"OR","filters":[{"field":"resource.schema_registry.id","op":"EQ","value":"'$CC_SR_ID'"}]},"granularity":"PT5M","intervals":["2024-05-09T11:00:00+02:00/2024-05-09T12:00:00+02:00"],"limit":1000}' \
+ -u $CLOUD_KEY:$CLOUD_SECRET | jq
+```
+
+> [!NOTE]  
+> As expected only 1 schema is found (the one created above).
+
+Create some aliases:
+
+```shell
+curl -X PUT -H "Content-Type: application/json" https://$CC_SR_HOST/config/alias.kafka-value -u $SR_KEY:$SR_SECRET \
+ --data '{"alias": "kafka-value"}'
+
+curl -X PUT -H "Content-Type: application/json" https://$CC_SR_HOST/config/alias2.kafka-value -u $SR_KEY:$SR_SECRET \
+ --data '{"alias": "kafka-value"}'
+ 
+curl -X PUT -H "Content-Type: application/json" https://$CC_SR_HOST/config/alias3.kafka-value -u $SR_KEY:$SR_SECRET \
+ --data '{"alias": "kafka-value"}'
+```
+
+Create an alias of an alias
+
+```
+curl -X PUT -H "Content-Type: application/json" https://$CC_SR_HOST/config/alias.alias.kafka-value -u $SR_KEY:$SR_SECRET \
+ --data '{"alias": "alias.kafka-value"}'
+```
+
+> [!WARNING]  
+> Alias of alias can be created, but not used. As this could derive on infinite loop or exhaustive usage of CPU.
+
+
+Count the schemas
+
+```shell
+curl -s 'https://api.telemetry.confluent.cloud/v2/metrics/cloud/query' \
+ -H "Content-Type: application/json" \
+ -d '{"aggregations":   [{"metric":"io.confluent.kafka.schema_registry/schema_count"}],"filter":{"op":"OR","filters":[{"field":"resource.schema_registry.id","op":"EQ","value":"'$CC_SR_ID'"}]},"granularity":"PT5M","intervals":["2024-05-09T11:00:00+02:00/2024-05-09T12:00:00+02:00"],"limit":1000}' \
+ -u $CLOUD_KEY:$CLOUD_SECRET | jq
+```
+
+Check on the schema itself and its alias
+
+```shell
+curl -s -u $SR_KEY:$SR_SECRET GET https://$CC_SR_HOST/subjects/kafka-value/versions/1 | jq
+
+curl -s -u $SR_KEY:$SR_SECRET GET https://$CC_SR_HOST/subjects/alias.kafka-value/versions/1 | jq
+
+curl -s -u $SR_KEY:$SR_SECRET GET https://$CC_SR_HOST/subjects/alias.alias.kafka-value/versions/1 | jq
+```
+
+> [!IMPORTANT]  
+> As described above, alis of alias returns an error.
+
+
+Create another schema
+```shell
+curl -s -u $SR_KEY:$SR_SECRET POST -H "Content-Type: application/vnd.schemaregistry.v1+json" https://$CC_SR_HOST/subjects/kafka2-value/versions --data '{"schema": "{\"type\": \"string\"}", "schemaType": "AVRO" }'
+```
+
+
+Count again the schemas
+
+```
+curl -s 'https://api.telemetry.confluent.cloud/v2/metrics/cloud/query' \
+ -H "Content-Type: application/json" \
+ -d '{"aggregations":   [{"metric":"io.confluent.kafka.schema_registry/schema_count", "agg": "SUM"}],"filter":{"op":"OR","filters":[{"field":"resource.schema_registry.id","op":"EQ","value":"'$CC_SR_ID'"}]},"granularity":"PT5M","intervals":["2024-05-09T11:00:00+02:00/2024-05-09T12:00:00+02:00"],"limit":1000}' \
+ -u $CLOUD_KEY:$CLOUD_SECRET | jq
+```
+
+Second schema is counted (remember to adapt the intervals).
+
+### Lessons learnt
+* A subject can have several aliases
+* Alias of alias cannot be used, but can be created.
+* An alias does not count as part of the used schemas.
+
+
 References:
 - Docs and Blogs: 
   - https://docs.confluent.io/platform/7.6/schema-registry/schema-validation.html#sr-per-topic-subject-name-strategy
   - https://docs.confluent.io/platform/current/schema-registry/fundamentals/index.html#subject-aliases
   - https://www.confluent.io/blog/best-practices-for-confluent-schema-registry/
-  
